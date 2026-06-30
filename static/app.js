@@ -1,11 +1,11 @@
 /* ═══════════════════════════════════════════════════════════════
    app.js  –  Smart Home Guest UI
-   Gehört zu: templates/index.html
+   Belongs to: templates/index.html
 ════════════════════════════════════════════════════════════════ */
 
 'use strict';
 
-// ─── Konstanten ──────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────
 const POLL_INTERVAL  = 8000;
 const TOAST_DURATION = 2800;
 
@@ -20,7 +20,7 @@ const state = {
   isAdmin:         false,
   allEntities:     [],
   pollTimer:       null,
-  firstRender:     true,   // erstes Laden → komplett aufbauen
+  firstRender:     true,   // first load → full rebuild
   editingGroup:    null,
   editingItems:    [],
   selectedIcon:    '💡',
@@ -29,7 +29,7 @@ const state = {
   subSelected:     new Set(),
 };
 
-// ─── DOM-Shortcuts ────────────────────────────────────────────────
+// ─── DOM shortcuts ────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 const el = {
   groupsGrid:         $('groupsGrid'),
@@ -103,10 +103,10 @@ async function init() {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//   LADEN & PATCH-STRATEGIE
-//   Erster Aufruf → komplett aufbauen.
-//   Folge-Polls  → nur geänderte Werte im DOM aktualisieren,
-//                  Karten bleiben stabil (kein Flackern).
+//   LOAD & PATCH STRATEGY
+//   First call  → full rebuild.
+//   Subsequent polls → only update changed values in the DOM,
+//                      cards stay stable (no flicker).
 // ══════════════════════════════════════════════════════════════════
 
 async function loadGroups() {
@@ -127,7 +127,7 @@ async function loadGroups() {
   }
 }
 
-// ── Vollständiges Rendern (einmalig beim ersten Laden) ──────────
+// ── Full render (once on first load) ───────────────────────────
 function renderGroups() {
   el.skeletonState.classList.add('hidden');
   if (state.groups.length === 0) {
@@ -140,13 +140,13 @@ function renderGroups() {
   state.groups.forEach(group => el.groupsGrid.appendChild(buildGroupCard(group)));
 }
 
-// ── In-Place Patch (bei jedem Poll danach) ─────────────────────
+// ── In-place patch (on every subsequent poll) ──────────────────
 function patchGroups(newGroups) {
   const oldIds = state.groups.map(g => g.id).join('|');
   const newIds = newGroups.map(g => g.id).join('|');
 
   if (oldIds !== newIds) {
-    // Gruppen-Liste hat sich strukturell geändert → neu aufbauen
+    // Group list changed structurally → full rebuild
     state.groups = newGroups;
     renderGroups();
     return;
@@ -161,11 +161,11 @@ function patchGroups(newGroups) {
     const newItemId = (newGroup.items  || []).map(i => i.id).join('|');
 
     if (oldItemId !== newItemId) {
-      // Items geändert → diese eine Karte austauschen
+      // Items changed → replace this one card
       const newCard = buildGroupCard(newGroup);
       el.groupsGrid.replaceChild(newCard, card);
     } else {
-      // Nur Zustände geändert → minimal patchen
+      // Only states changed → minimal patch
       patchCard(card, newGroup);
     }
   });
@@ -177,17 +177,17 @@ function patchCard(card, group) {
   const items  = group.items || [];
   const onCount = items.filter(i => i.state === 'on').length;
 
-  // Zähler-Badge
+  // Count badge
   const badge = card.querySelector('.group-on-count');
   if (badge) badge.textContent = `${onCount}/${items.length}`;
 
-  // Hauptschalter
+  // Master switch
   const masterCb = card.querySelector('.master-toggle input');
   if (masterCb && document.activeElement !== masterCb) {
     masterCb.checked = group.master_state === 'on';
   }
 
-  // Item-Zeilen (device-row und subgroup-row)
+  // Item rows (device-row and subgroup-row)
   const rows = card.querySelectorAll('.device-row, .subgroup-row');
   items.forEach((item, idx) => {
     const row = rows[idx];
@@ -200,11 +200,11 @@ function patchCard(card, group) {
       cb.disabled = item.state === 'unavailable';
     }
 
-    // State-Label
+    // State label
     const sl = row.querySelector('.device-state-label, .subgroup-state-label');
     if (sl) sl.textContent = stateLabel(item.state);
 
-    // Helligkeit-Slider
+    // Brightness slider
     const slider = row.querySelector('.slider');
     if (slider && document.activeElement !== slider) {
       const bri = item.attributes?.brightness;
@@ -212,7 +212,7 @@ function patchCard(card, group) {
       slider.disabled = item.state !== 'on';
     }
 
-    // Farb-Picker
+    // Color picker
     const cinp = row.querySelector('input[type=color]');
     if (cinp && document.activeElement !== cinp) {
       const rgb = item.attributes?.rgb_color
@@ -237,7 +237,7 @@ function stopPolling() {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//   KARTEN BAUEN
+//   BUILD CARDS
 // ══════════════════════════════════════════════════════════════════
 
 function buildGroupCard(group) {
@@ -254,7 +254,7 @@ function buildGroupCard(group) {
     <span class="group-icon">${esc(group.icon)}</span>
     <span class="group-name">${esc(group.name)}</span>
     <span class="group-on-count">${onCount}/${total}</span>
-    <label class="toggle master-toggle" title="Alle an/aus">
+    <label class="toggle master-toggle" title="All on/off">
       <input type="checkbox" ${masterOn ? 'checked' : ''} />
       <span class="toggle-slider"></span>
     </label>
@@ -275,10 +275,10 @@ function buildGroupCard(group) {
       ).forEach(cb => { cb.checked = on; });
       card.querySelectorAll(
         '.device-state-label, .subgroup-state-label'
-      ).forEach(sl => { sl.textContent = on ? 'An' : 'Aus'; });
+      ).forEach(sl => { sl.textContent = on ? 'On' : 'Off'; });
     } catch (e) {
       masterCb.checked = !masterCb.checked;
-      showToast('Fehler: ' + e.message, 'error');
+      showToast('Error: ' + e.message, 'error');
     } finally {
       masterCb.disabled = false;
     }
@@ -299,7 +299,7 @@ function buildGroupCard(group) {
   return card;
 }
 
-// ── Einzelgerät-Zeile ────────────────────────────────────────────
+// ── Single device row ────────────────────────────────────────────
 function buildDeviceRow(device, masterCb, countBadge, total) {
   const isOn   = device.state === 'on';
   const attrs  = device.attributes || {};
@@ -325,7 +325,7 @@ function buildDeviceRow(device, masterCb, countBadge, total) {
   const sl = top.querySelector('.device-state-label');
 
   cb.addEventListener('change', async () => {
-    sl.textContent = cb.checked ? 'An' : 'Aus';
+    sl.textContent = cb.checked ? 'On' : 'Off';
     syncCountBadge(card => card.querySelector('.group-on-count'), masterCb, countBadge, total);
     cb.disabled = true;
     try {
@@ -336,13 +336,13 @@ function buildDeviceRow(device, masterCb, countBadge, total) {
     } catch (e) {
       cb.checked = !cb.checked;
       sl.textContent = stateLabel(cb.checked ? 'on' : 'off');
-      showToast('Fehler: ' + e.message, 'error');
+      showToast('Error: ' + e.message, 'error');
     } finally {
       cb.disabled = false;
     }
   });
 
-  // Helligkeit
+  // Brightness
   if (hasBri) {
     const bri    = attrs.brightness ?? 255;
     const briRow = mk('div', 'brightness-row');
@@ -360,13 +360,13 @@ function buildDeviceRow(device, masterCb, countBadge, total) {
           await post('/api/control', {
             entity_id: device.entity_id, action: 'turn_on', brightness: +slider.value,
           });
-        } catch (e) { showToast('Fehler: ' + e.message, 'error'); }
+        } catch (e) { showToast('Error: ' + e.message, 'error'); }
       }, 200);
     });
     row.appendChild(briRow);
   }
 
-  // Farbe
+  // Color
   if (hasCol) {
     const rgb = attrs.rgb_color || [255, 255, 255];
     row.appendChild(buildColorRow([device.entity_id], rgb));
@@ -375,14 +375,14 @@ function buildDeviceRow(device, masterCb, countBadge, total) {
   return row;
 }
 
-// ── Untergruppen-Zeile ────────────────────────────────────────────
+// ── Subgroup row ─────────────────────────────────────────────────
 function buildSubgroupRow(item, masterCb, countBadge, total) {
   const isOn     = item.state === 'on';
   const attrs    = item.attributes || {};
   const devs     = item.devices || [];
   const devCount = devs.length;
 
-  // Hat die Untergruppe Lampen → Helligkeit/Farbe zeigen
+  // Show brightness/color if the subgroup contains lights
   const colorModes = attrs.supported_color_modes || [];
   const hasBri     = devs.some(d => d.domain === 'light');
   const hasCol     = colorModes.some(m => ['rgb','hs','xy','rgbw','rgbww'].includes(m));
@@ -407,7 +407,7 @@ function buildSubgroupRow(item, masterCb, countBadge, total) {
 
   cb.addEventListener('change', async () => {
     const action = cb.checked ? 'turn_on' : 'turn_off';
-    sl.textContent = cb.checked ? 'An' : 'Aus';
+    sl.textContent = cb.checked ? 'On' : 'Off';
     if (slider) slider.disabled = !cb.checked;
     cb.disabled = true;
     try {
@@ -416,13 +416,13 @@ function buildSubgroupRow(item, masterCb, countBadge, total) {
       cb.checked = !cb.checked;
       sl.textContent = stateLabel(cb.checked ? 'on' : 'off');
       if (slider) slider.disabled = !cb.checked;
-      showToast('Fehler: ' + e.message, 'error');
+      showToast('Error: ' + e.message, 'error');
     } finally {
       cb.disabled = false;
     }
   });
 
-  // Helligkeit – immer zeigen wenn Lampen vorhanden
+  // Brightness — always show when lights are present
   let slider = null;
   if (hasBri) {
     const bri    = attrs.brightness ?? 255;
@@ -436,23 +436,23 @@ function buildSubgroupRow(item, masterCb, countBadge, total) {
     slider.addEventListener('input', () => {
       clearTimeout(t);
       t = setTimeout(async () => {
-        // Beim ersten Bewegen einschalten falls noch aus
+        // Turn on when sliding from off state
         if (!cb.checked) {
           cb.checked = true;
-          sl.textContent = 'An';
+          sl.textContent = 'On';
           slider.disabled = false;
         }
         try {
           await post('/api/control', {
             entity_ids: item.entity_ids, action: 'turn_on', brightness: +slider.value,
           });
-        } catch (e) { showToast('Fehler: ' + e.message, 'error'); }
+        } catch (e) { showToast('Error: ' + e.message, 'error'); }
       }, 200);
     });
     row.appendChild(briRow);
   }
 
-  // Farbe – immer zeigen wenn Farbmodus vorhanden
+  // Color — always show when a color mode is present
   if (hasCol) {
     const onDev = devs.find(d => d.state === 'on' && d.attributes?.rgb_color);
     const rgb   = onDev?.attributes?.rgb_color || [255, 200, 100];
@@ -463,13 +463,13 @@ function buildSubgroupRow(item, masterCb, countBadge, total) {
   return row;
 }
 
-// ── Farb-Picker (wiederverwendbar) ────────────────────────────────
+// ── Color picker (reusable) ───────────────────────────────────────
 function buildColorRow(entityIds, rgb, toggleCb, stateLabel, briSlider) {
   const hex      = toHex(...rgb);
   const colorRow = mk('div', 'color-row');
   colorRow.innerHTML = `
-    <span class="color-label">Farbe</span>
-    <button class="color-input-btn" style="background:${hex}" title="Farbe wählen">
+    <span class="color-label">Color</span>
+    <button class="color-input-btn" style="background:${hex}" title="Pick color">
       <input type="color" value="${hex}" />
     </button>
   `;
@@ -480,26 +480,25 @@ function buildColorRow(entityIds, rgb, toggleCb, stateLabel, briSlider) {
     btn.style.background = cinp.value;
     clearTimeout(ct);
     ct = setTimeout(async () => {
-      // Einschalten falls aus
+      // Turn on if currently off
       if (toggleCb && !toggleCb.checked) {
         toggleCb.checked = true;
-        if (stateLabel) stateLabel.textContent = 'An';
+        if (stateLabel) stateLabel.textContent = 'On';
         if (briSlider)  briSlider.disabled = false;
       }
       try {
         await post('/api/control', {
           entity_ids: entityIds, action: 'turn_on', rgb_color: fromHex(cinp.value),
         });
-      } catch (e) { showToast('Fehler: ' + e.message, 'error'); }
+      } catch (e) { showToast('Error: ' + e.message, 'error'); }
     }, 300);
   });
   return colorRow;
 }
 
-// ─── Zähler-Badge sync ────────────────────────────────────────────
+// ─── Count badge sync ─────────────────────────────────────────────
 function syncCountBadge(getCard, masterCb, countBadge, total) {
   if (!countBadge) return;
-  // Zähle alle gecheckte Toggles in der Karte
   const card = countBadge.closest('.group-card');
   if (!card) return;
   const cbs    = [...card.querySelectorAll('.device-row input[type=checkbox], .subgroup-row input[type=checkbox]')];
@@ -529,7 +528,7 @@ function renderAdminGroupList() {
   el.adminGroupList.innerHTML = '';
   if (state.groups.length === 0) {
     el.adminGroupList.innerHTML = `<p style="color:var(--text3);font-size:14px;text-align:center;padding:20px 0">
-      Noch keine Gruppen. Füge eine hinzu!</p>`;
+      No groups yet. Add one!</p>`;
     return;
   }
   state.groups.forEach(group => {
@@ -539,11 +538,11 @@ function renderAdminGroupList() {
       <span class="admin-group-icon">${esc(group.icon)}</span>
       <div class="admin-group-info">
         <div class="admin-group-name">${esc(group.name)}</div>
-        <div class="admin-group-meta">${cnt} Eintrag${cnt !== 1 ? 'e' : ''}</div>
+        <div class="admin-group-meta">${cnt} item${cnt !== 1 ? 's' : ''}</div>
       </div>
       <div class="admin-group-actions">
-        <button class="edit-btn" title="Bearbeiten">✏️</button>
-        <button class="del-btn"  title="Löschen">🗑️</button>
+        <button class="edit-btn" title="Edit">✏️</button>
+        <button class="del-btn"  title="Delete">🗑️</button>
       </div>
     `;
     item.querySelector('.edit-btn').onclick = () => openGroupEditor(group);
@@ -553,17 +552,16 @@ function renderAdminGroupList() {
 }
 
 async function deleteGroup(groupId) {
-  if (!confirm('Gruppe wirklich löschen?')) return;
+  if (!confirm('Delete this group?')) return;
   state.groups = state.groups.filter(g => g.id !== groupId);
   await saveGroupsToServer();
   renderAdminGroupList();
-  // Karten neu aufbauen
   state.firstRender = true;
   renderGroups();
 }
 
 // ══════════════════════════════════════════════════════════════════
-//   GRUPPEN-EDITOR
+//   GROUP EDITOR
 // ══════════════════════════════════════════════════════════════════
 
 function openGroupEditor(group = null) {
@@ -571,7 +569,7 @@ function openGroupEditor(group = null) {
   state.editingItems = group ? JSON.parse(JSON.stringify(group.items || [])) : [];
   state.selectedIcon = group?.icon || '💡';
 
-  el.editorTitle.textContent = group ? 'Gruppe bearbeiten' : 'Neue Gruppe';
+  el.editorTitle.textContent = group ? 'Edit group' : 'New group';
   el.groupNameInput.value    = group?.name || '';
   updateIconPickerSelection();
   renderEditorItems();
@@ -590,15 +588,15 @@ function closeGroupEditor() {
 function renderEditorItems() {
   el.editorItemsList.innerHTML = '';
   if (state.editingItems.length === 0) {
-    el.editorItemsList.innerHTML = `<p class="editor-empty-hint">Noch keine Geräte oder Untergruppen.</p>`;
+    el.editorItemsList.innerHTML = `<p class="editor-empty-hint">No devices or subgroups yet.</p>`;
     return;
   }
   state.editingItems.forEach((item, idx) => {
     const isSub = item.type === 'subgroup';
     const row   = mk('div', `editor-item${isSub ? ' editor-item--sub' : ''}`);
-    const name  = isSub ? (item.name || 'Untergruppe') : friendlyNameOf(item.entity_id);
+    const name  = isSub ? (item.name || 'Subgroup') : friendlyNameOf(item.entity_id);
     const meta  = isSub
-      ? `${(item.devices||[]).length} Gerät${(item.devices||[]).length !== 1 ? 'e' : ''}`
+      ? `${(item.devices||[]).length} device${(item.devices||[]).length !== 1 ? 's' : ''}`
       : (item.entity_id || '');
     row.innerHTML = `
       <span class="editor-item-icon">${isSub ? '📦' : '💡'}</span>
@@ -607,8 +605,8 @@ function renderEditorItems() {
         <div class="editor-item-meta">${esc(meta)}</div>
       </div>
       <div class="editor-item-actions">
-        ${isSub ? `<button class="editor-item-edit" title="Bearbeiten">✏️</button>` : ''}
-        <button class="editor-item-del" title="Entfernen">✕</button>
+        ${isSub ? `<button class="editor-item-edit" title="Edit">✏️</button>` : ''}
+        <button class="editor-item-del" title="Remove">✕</button>
       </div>
     `;
     if (isSub) row.querySelector('.editor-item-edit').onclick = () => openSubgroupModal(item, idx);
@@ -627,7 +625,7 @@ function friendlyNameOf(entityId) {
 
 async function saveGroup() {
   const name = el.groupNameInput.value.trim();
-  if (!name) { el.groupNameInput.focus(); showToast('Bitte einen Namen eingeben', 'error'); return; }
+  if (!name) { el.groupNameInput.focus(); showToast('Please enter a name', 'error'); return; }
 
   const groupData = {
     id:    state.editingGroup?.id || genId(),
@@ -645,13 +643,13 @@ async function saveGroup() {
 
   try {
     await saveGroupsToServer();
-    showToast('Gruppe gespeichert ✓', 'success');
+    showToast('Group saved ✓', 'success');
     closeGroupEditor();
     renderAdminGroupList();
     state.firstRender = true;
     await loadGroups();
   } catch (e) {
-    showToast('Fehler: ' + e.message, 'error');
+    showToast('Error: ' + e.message, 'error');
   }
 }
 
@@ -668,7 +666,7 @@ async function saveGroupsToServer() {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//   GERÄTE-PICKER
+//   DEVICE PICKER
 // ══════════════════════════════════════════════════════════════════
 
 function openDevicePicker() {
@@ -689,7 +687,7 @@ function closeDevicePicker() {
 function renderPickerList(entities) {
   el.devicePickerList.innerHTML = '';
   if (!entities.length) {
-    el.devicePickerList.innerHTML = '<div class="entity-loading">Keine Geräte gefunden.</div>';
+    el.devicePickerList.innerHTML = '<div class="entity-loading">No devices found.</div>';
     return;
   }
   entities.forEach(entity => {
@@ -708,11 +706,11 @@ function renderPickerList(entities) {
 }
 
 function confirmDevicePicker() {
-  // Nicht mehr ausgewählte device-Items entfernen
+  // Remove deselected device items
   state.editingItems = state.editingItems.filter(
     i => i.type !== 'device' || state.pickerSelected.has(i.entity_id)
   );
-  // Neue hinzufügen
+  // Add newly selected ones
   state.pickerSelected.forEach(eid => {
     if (!state.editingItems.find(i => i.type === 'device' && i.entity_id === eid)) {
       state.editingItems.push({ id: genId(), type: 'device', entity_id: eid });
@@ -723,12 +721,12 @@ function confirmDevicePicker() {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//   UNTERGRUPPEN-MODAL
+//   SUBGROUP MODAL
 // ══════════════════════════════════════════════════════════════════
 
 function openSubgroupModal(subgroup = null, editIdx = null) {
   state.editingSubgroup = subgroup ? { ...subgroup, editIdx } : null;
-  el.subgroupTitle.textContent = subgroup ? 'Untergruppe bearbeiten' : 'Neue Untergruppe';
+  el.subgroupTitle.textContent = subgroup ? 'Edit subgroup' : 'New subgroup';
   el.subgroupNameInput.value   = subgroup?.name || '';
   state.subSelected            = new Set(subgroup?.devices || subgroup?.entity_ids || []);
   el.subgroupSearch.value      = '';
@@ -746,7 +744,7 @@ function closeSubgroupModal() {
 function renderSubgroupEntityList(entities) {
   el.subgroupEntityList.innerHTML = '';
   if (!entities.length) {
-    el.subgroupEntityList.innerHTML = '<div class="entity-loading">Keine Geräte gefunden.</div>';
+    el.subgroupEntityList.innerHTML = '<div class="entity-loading">No devices found.</div>';
     return;
   }
   entities.forEach(entity => {
@@ -766,8 +764,8 @@ function renderSubgroupEntityList(entities) {
 
 function saveSubgroup() {
   const name = el.subgroupNameInput.value.trim();
-  if (!name)                   { el.subgroupNameInput.focus(); showToast('Bitte einen Namen eingeben', 'error'); return; }
-  if (state.subSelected.size === 0) { showToast('Mindestens ein Gerät auswählen', 'error'); return; }
+  if (!name)                   { el.subgroupNameInput.focus(); showToast('Please enter a name', 'error'); return; }
+  if (state.subSelected.size === 0) { showToast('Select at least one device', 'error'); return; }
 
   const sg = {
     id:      state.editingSubgroup?.id || genId(),
@@ -785,7 +783,7 @@ function saveSubgroup() {
   renderEditorItems();
 }
 
-// ─── Entity-Zeile (wiederverwendbar) ─────────────────────────────
+// ─── Entity row (reusable) ────────────────────────────────────────
 function buildEntityRow(entity, isSelected) {
   const row = mk('div', `entity-item${isSelected ? ' selected' : ''}`);
   row.innerHTML = `
@@ -799,7 +797,7 @@ function buildEntityRow(entity, isSelected) {
   return row;
 }
 
-// ─── Entities laden ───────────────────────────────────────────────
+// ─── Load entities ────────────────────────────────────────────────
 async function loadEntities() {
   try {
     const data = await get('/api/admin/entities');
@@ -807,11 +805,11 @@ async function loadEntities() {
     if (!el.devicePicker.classList.contains('hidden'))  renderPickerList(state.allEntities);
     if (!el.subgroupModal.classList.contains('hidden')) renderSubgroupEntityList(state.allEntities);
   } catch (e) {
-    console.error('Entities laden fehlgeschlagen:', e);
+    console.error('Failed to load entities:', e);
   }
 }
 
-// ─── Icon-Picker ──────────────────────────────────────────────────
+// ─── Icon picker ──────────────────────────────────────────────────
 function buildIconPicker() {
   GROUP_ICONS.forEach(icon => {
     const btn       = mk('button', 'icon-option');
@@ -850,7 +848,7 @@ async function doLogin(e) {
   e.preventDefault();
   const pw = el.passwordInput.value;
   if (!pw) return;
-  el.loginBtnText.textContent = 'Anmelden…';
+  el.loginBtnText.textContent = 'Signing in…';
   el.loginSpinner.classList.remove('hidden');
   el.loginError.classList.add('hidden');
   try {
@@ -864,7 +862,7 @@ async function doLogin(e) {
     el.loginError.classList.remove('hidden');
     el.passwordInput.select();
   } finally {
-    el.loginBtnText.textContent = 'Anmelden';
+    el.loginBtnText.textContent = 'Sign in';
     el.loginSpinner.classList.add('hidden');
   }
 }
@@ -874,25 +872,25 @@ async function doLogout() {
   state.isAdmin = false;
   updateAdminBtn();
   closeAdminPanel();
-  showToast('Abgemeldet', 'success');
+  showToast('Logged out', 'success');
 }
 
 function updateAdminBtn() {
   el.adminBtn.classList.toggle('admin-active', state.isAdmin);
-  el.adminBtn.title = state.isAdmin ? 'Admin öffnen' : 'Admin-Login';
+  el.adminBtn.title = state.isAdmin ? 'Open admin' : 'Admin login';
 }
 
 // ══════════════════════════════════════════════════════════════════
-//   HILFSFUNKTIONEN
+//   HELPERS
 // ══════════════════════════════════════════════════════════════════
 
 function stateLabel(s) {
-  return s === 'on' ? 'An' : s === 'unavailable' ? 'N/A' : 'Aus';
+  return s === 'on' ? 'On' : s === 'unavailable' ? 'N/A' : 'Off';
 }
 
 function setConnection(ok) {
   el.connectionDot.className = `conn-dot ${ok ? 'conn-ok' : 'conn-error'}`;
-  el.connectionDot.title     = ok ? 'Verbunden' : 'Verbindungsfehler';
+  el.connectionDot.title     = ok ? 'Connected' : 'Connection error';
 }
 
 function showBackdrop() { el.backdrop.classList.remove('hidden'); }
@@ -934,7 +932,7 @@ function fromHex(hex) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//   EVENT-BINDING
+//   EVENT BINDING
 // ══════════════════════════════════════════════════════════════════
 
 function bindEvents() {
@@ -942,12 +940,12 @@ function bindEvents() {
     if (state.isAdmin) openAdminPanel(); else showLoginModal();
   });
 
-  // Admin Panel
+  // Admin panel
   el.adminCloseBtn.addEventListener('click', closeAdminPanel);
   el.logoutBtn.addEventListener('click', doLogout);
   el.addGroupBtn.addEventListener('click', () => openGroupEditor(null));
 
-  // Gruppen-Editor
+  // Group editor
   el.editorBackBtn.addEventListener('click', closeGroupEditor);
   el.editorSaveBtn.addEventListener('click', saveGroup);
   el.addDeviceBtn.addEventListener('click', () => {
@@ -959,7 +957,7 @@ function bindEvents() {
     else openSubgroupModal();
   });
 
-  // Device-Picker
+  // Device picker
   el.devicePickerBack.addEventListener('click', closeDevicePicker);
   el.devicePickerAdd.addEventListener('click', confirmDevicePicker);
   el.devicePickerSearch.addEventListener('input', () => {
@@ -970,7 +968,7 @@ function bindEvents() {
     );
   });
 
-  // Untergruppen-Modal
+  // Subgroup modal
   el.subgroupCancel.addEventListener('click', closeSubgroupModal);
   el.subgroupSave.addEventListener('click', saveSubgroup);
   el.subgroupNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveSubgroup(); } });
@@ -990,13 +988,13 @@ function bindEvents() {
   // Backdrop
   el.backdrop.addEventListener('click', () => {
     if (!el.subgroupModal.classList.contains('hidden')) { closeSubgroupModal(); return; }
-    if (!el.devicePicker.classList.contains('hidden'))  { return; } // Picker hat eigenen Back-Button
+    if (!el.devicePicker.classList.contains('hidden'))  { return; } // picker has its own back button
     if (!el.groupEditor.classList.contains('hidden'))   { return; }
     if (!el.loginModal.classList.contains('hidden'))    { hideLoginModal(); return; }
     closeAdminPanel();
   });
 
-  // Escape
+  // Escape key
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     if (!el.subgroupModal.classList.contains('hidden')) { closeSubgroupModal(); return; }
@@ -1006,7 +1004,7 @@ function bindEvents() {
     if (!el.adminPanel.classList.contains('hidden'))    { closeAdminPanel(); return; }
   });
 
-  // Tab-Wechsel → Polling pausieren
+  // Pause polling when tab is hidden
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) stopPolling();
     else { loadGroups(); startPolling(); }

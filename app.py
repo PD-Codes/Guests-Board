@@ -22,7 +22,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 DB_PATH        = os.path.join(os.path.dirname(__file__), "smarthome.db")
 
 
-# ─── Datenbank ────────────────────────────────────────────────────
+# ─── Database ─────────────────────────────────────────────────────
 
 def get_db():
     if "db" not in g:
@@ -42,11 +42,11 @@ def close_db(exc=None):
 def init_db():
     """
     Schema:
-      groups       – Hauptgruppen
-      group_items  – Items einer Gruppe (type='device' | 'subgroup')
-      item_devices – Geräte je Item (1 bei device, n bei subgroup)
+      groups       – top-level groups
+      group_items  – items within a group (type='device' | 'subgroup')
+      item_devices – devices per item (1 for device, n for subgroup)
 
-    Migration: Falls alte group_devices-Tabelle vorhanden → in neues Schema übertragen.
+    Migration: if the old group_devices table exists, transfer to new schema.
     """
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("PRAGMA foreign_keys = ON")
@@ -54,7 +54,6 @@ def init_db():
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall()}
 
-        # Hauptgruppen-Tabelle (unveränderter Name/Struktur)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS groups (
                 id   TEXT PRIMARY KEY,
@@ -65,7 +64,7 @@ def init_db():
         """)
 
         if "group_devices" in tables and "group_items" not in tables:
-            # ── Migration von alter Struktur ──────────────────────────
+            # ── Migrate from old schema ───────────────────────────
             conn.execute("""
                 CREATE TABLE group_items (
                     id       TEXT PRIMARY KEY,
@@ -98,7 +97,7 @@ def init_db():
                 )
             conn.execute("DROP TABLE group_devices")
         else:
-            # ── Frische Installation ──────────────────────────────────
+            # ── Fresh install ─────────────────────────────────────
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS group_items (
                     id       TEXT PRIMARY KEY,
@@ -120,10 +119,10 @@ def init_db():
         conn.commit()
 
 
-# ─── DB-Hilfsfunktionen ────────────────────────────────────────────
+# ─── DB helpers ───────────────────────────────────────────────────
 
 def db_load_groups():
-    """Alle Gruppen mit Items laden (keine HA-Zustände – nur IDs)."""
+    """Load all groups with items (no HA states — entity IDs only)."""
     db = get_db()
     groups = []
     for grow in db.execute(
@@ -163,7 +162,7 @@ def db_load_groups():
 
 
 def db_save_groups(groups):
-    """Komplette Gruppen-Liste atomar ersetzen."""
+    """Atomically replace the full group list."""
     db = get_db()
 
     incoming_gids = {g["id"] for g in groups}
@@ -218,7 +217,7 @@ def db_save_groups(groups):
     db.commit()
 
 
-# ─── HA-Hilfsfunktionen ────────────────────────────────────────────
+# ─── HA helpers ───────────────────────────────────────────────────
 
 def ha_headers():
     return {
@@ -255,7 +254,7 @@ def fetch_ha_state(entity_id):
 
 
 def aggregate_state(device_states):
-    """on wenn mind. ein Gerät an, unavailable wenn alle unavailable."""
+    """on if at least one device is on, unavailable if all are unavailable."""
     states = [d["state"] for d in device_states]
     if all(s == "unavailable" for s in states):
         return "unavailable"
@@ -263,7 +262,7 @@ def aggregate_state(device_states):
 
 
 def aggregate_attrs(device_states):
-    """Durchschnittliche Helligkeit + vereinte color_modes."""
+    """Average brightness + merged color_modes."""
     on_devs = [d for d in device_states if d["state"] == "on"]
     avg_bri = None
     if on_devs:
@@ -294,7 +293,7 @@ def login():
         session.permanent = True
         session["admin"]  = True
         return jsonify({"success": True})
-    return jsonify({"error": "Falsches Passwort"}), 401
+    return jsonify({"error": "Wrong password"}), 401
 
 
 @app.route("/api/logout", methods=["POST"])
@@ -308,7 +307,7 @@ def auth_status():
     return jsonify({"admin": bool(session.get("admin"))})
 
 
-# ─── Gäste-Routen ─────────────────────────────────────────────────
+# ─── Guest routes ─────────────────────────────────────────────────
 
 @app.route("/")
 def index():
@@ -317,13 +316,13 @@ def index():
 
 @app.route("/api/groups")
 def get_groups():
-    """Gruppen mit aktuellem HA-Status. Items = device | subgroup."""
+    """Groups with current HA state. Items = device | subgroup."""
     groups = db_load_groups()
     result = []
 
     for group in groups:
         items_out   = []
-        all_eids    = []   # für Hauptschalter
+        all_eids    = []   # for master switch
 
         for item in group["items"]:
             if item["type"] == "device":
@@ -365,7 +364,7 @@ def get_groups():
             "name":         group["name"],
             "icon":         group["icon"],
             "master_state": master_state,
-            "all_eids":     list(dict.fromkeys(all_eids)),  # dedupliziert, Reihenfolge erhalten
+            "all_eids":     list(dict.fromkeys(all_eids)),  # deduplicated, order preserved
             "items":        items_out,
         })
 
@@ -375,7 +374,7 @@ def get_groups():
 @app.route("/api/control", methods=["POST"])
 def control_device():
     """
-    Steuert ein oder mehrere Geräte.
+    Control one or more devices.
     Body: { entity_id | entity_ids, action, brightness?, rgb_color? }
     """
     data       = request.get_json() or {}
@@ -385,7 +384,7 @@ def control_device():
     action = data.get("action")
 
     if not entity_ids or action not in ("turn_on", "turn_off", "toggle"):
-        return jsonify({"error": "Ungültige Parameter"}), 400
+        return jsonify({"error": "Invalid parameters"}), 400
 
     results = []
     for eid in entity_ids:
@@ -410,7 +409,7 @@ def control_device():
     return jsonify({"success": all("ha_status" in r for r in results), "results": results})
 
 
-# ─── Admin-Routen ──────────────────────────────────────────────────
+# ─── Admin routes ─────────────────────────────────────────────────
 
 @app.route("/api/admin/entities")
 @admin_required
@@ -455,7 +454,7 @@ def get_config():
 def save_config_route():
     data = request.get_json() or {}
     if "groups" not in data:
-        return jsonify({"error": "Ungültige Konfiguration"}), 400
+        return jsonify({"error": "Invalid configuration"}), 400
     db_save_groups(data["groups"])
     return jsonify({"success": True})
 
@@ -465,8 +464,8 @@ def save_config_route():
 init_db()
 
 if __name__ == "__main__":
-    print("🏠  Smart Home Guest Server startet...")
-    print(f"   HA-URL : {HA_URL}")
+    print("🏠  Smart Home Guest Server starting...")
+    print(f"   HA URL : {HA_URL}")
     print(f"   DB     : {DB_PATH}")
     print(f"   Server : http://0.0.0.0:5000")
     app.run(debug=True, host="0.0.0.0", port=5000, use_reloader=True)

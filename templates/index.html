@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
@@ -24,8 +24,8 @@
         <span class="header-title">Smart Home</span>
       </div>
       <div class="header-actions">
-        <span id="connectionDot" class="conn-dot conn-unknown" title="Verbindungsstatus"></span>
-        <button id="adminBtn" class="icon-btn" title="Admin-Bereich">
+        <span id="connectionDot" class="conn-dot conn-unknown" title="Connection status"></span>
+        <button id="adminBtn" class="icon-btn" title="Admin area">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
@@ -37,15 +37,15 @@
   </header>
 
   <!-- ════════════════════════════════════════
-       GÄSTE-ANSICHT
+       GUEST VIEW
   ═══════════════════════════════════════════ -->
   <main id="guestView" class="guest-view">
     <div id="groupsGrid" class="groups-grid"></div>
 
     <div id="emptyState" class="empty-state hidden">
       <div class="empty-icon">🏡</div>
-      <p class="empty-title">Keine Gruppen konfiguriert</p>
-      <p class="empty-sub">Der Admin hat noch keine Geräte eingerichtet.</p>
+      <p class="empty-title">No groups configured</p>
+      <p class="empty-sub">The admin hasn't set up any devices yet.</p>
     </div>
 
     <div id="skeletonState" class="skeleton-wrap">
@@ -56,7 +56,7 @@
   </main>
 
   <!-- ════════════════════════════════════════
-       ADMIN-PANEL
+       ADMIN PANEL
   ═══════════════════════════════════════════ -->
   <div id="adminPanel" class="side-panel hidden">
     <div class="side-panel-inner">
@@ -67,10 +67,10 @@
             <line x1="19" y1="12" x2="5" y2="12"></line>
             <polyline points="12 19 5 12 12 5"></polyline>
           </svg>
-          Zurück
+          Back
         </button>
         <h2 class="panel-title">⚙️ Admin</h2>
-        <button id="logoutBtn" class="logout-btn" title="Abmelden">
+        <button id="logoutBtn" class="logout-btn" title="Log out">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -80,7 +80,7 @@
         </button>
       </div>
       <div class="side-panel-body">
-        <div class="section-label">Gruppen</div>
+        <div class="section-label">Groups</div>
         <div id="adminGroupList" class="admin-group-list"></div>
         <button id="addGroupBtn" class="add-btn">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
@@ -88,14 +88,14 @@
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
-          Gruppe hinzufügen
+          Add group
         </button>
       </div>
     </div>
   </div>
 
   <!-- ════════════════════════════════════════
-       GRUPPEN-EDITOR
+       GROUP EDITOR
   ═══════════════════════════════════════════ -->
   <div id="groupEditor" class="side-panel side-panel--deep hidden">
     <div class="side-panel-inner">
@@ -108,33 +108,33 @@
           </svg>
           Admin
         </button>
-        <h2 class="panel-title" id="editorTitle">Gruppe bearbeiten</h2>
-        <button id="editorSaveBtn" class="save-btn">Speichern</button>
+        <h2 class="panel-title" id="editorTitle">Edit group</h2>
+        <button id="editorSaveBtn" class="save-btn">Save</button>
       </div>
       <div class="side-panel-body">
 
-        <!-- Gruppenname -->
+        <!-- Group name -->
         <div class="form-group">
           <label class="form-label">Name</label>
-          <input type="text" id="groupNameInput" class="form-input" placeholder="z.B. Bad" maxlength="30" />
+          <input type="text" id="groupNameInput" class="form-input" placeholder="e.g. Bathroom" maxlength="30" />
         </div>
 
-        <!-- Icon-Picker -->
+        <!-- Icon picker -->
         <div class="form-group">
           <label class="form-label">Icon</label>
           <div class="icon-picker" id="iconPicker"></div>
         </div>
 
-        <!-- Items-Liste -->
+        <!-- Items list -->
         <div class="form-group">
-          <label class="form-label">Geräte &amp; Untergruppen</label>
+          <label class="form-label">Devices &amp; Subgroups</label>
           <div id="editorItemsList" class="editor-items-list"></div>
           <div class="add-item-row">
             <button id="addDeviceBtn" class="add-item-btn">
-              <span>💡</span> Gerät hinzufügen
+              <span>💡</span> Add device
             </button>
             <button id="addSubgroupBtn" class="add-item-btn add-item-btn--sub">
-              <span>📦</span> Untergruppe
+              <span>📦</span> Subgroup
             </button>
           </div>
         </div>
@@ -144,7 +144,7 @@
   </div>
 
   <!-- ════════════════════════════════════════
-       GERÄTE-PICKER (Slide-in, 3. Ebene)
+       DEVICE PICKER (slide-in, 3rd level)
   ═══════════════════════════════════════════ -->
   <div id="devicePicker" class="side-panel side-panel--deeper hidden">
     <div class="side-panel-inner">
@@ -155,14 +155,14 @@
             <line x1="19" y1="12" x2="5" y2="12"></line>
             <polyline points="12 19 5 12 12 5"></polyline>
           </svg>
-          Gruppe
+          Group
         </button>
-        <h2 class="panel-title">Gerät wählen</h2>
-        <button id="devicePickerAdd" class="save-btn">Hinzufügen</button>
+        <h2 class="panel-title">Select device</h2>
+        <button id="devicePickerAdd" class="save-btn">Add</button>
       </div>
       <div class="side-panel-body">
         <div class="form-group">
-          <input type="text" id="devicePickerSearch" class="form-input" placeholder="🔍 Suchen…" />
+          <input type="text" id="devicePickerSearch" class="form-input" placeholder="🔍 Search…" />
         </div>
         <div id="devicePickerList" class="entity-list"></div>
       </div>
@@ -170,24 +170,24 @@
   </div>
 
   <!-- ════════════════════════════════════════
-       UNTERGRUPPEN-MODAL
+       SUBGROUP MODAL
   ═══════════════════════════════════════════ -->
   <div id="subgroupModal" class="modal-overlay hidden">
     <div class="modal modal--sheet" role="dialog" aria-modal="true" aria-labelledby="subgroupTitle">
       <div class="sheet-handle"></div>
       <div class="sheet-header">
-        <button id="subgroupCancel" class="modal-cancel">Abbrechen</button>
-        <h3 id="subgroupTitle" class="sheet-title">Untergruppe</h3>
+        <button id="subgroupCancel" class="modal-cancel">Cancel</button>
+        <h3 id="subgroupTitle" class="sheet-title">Subgroup</h3>
         <button id="subgroupSave" class="save-btn">OK</button>
       </div>
       <div class="sheet-body">
         <div class="form-group">
-          <label class="form-label">Name der Untergruppe</label>
-          <input type="text" id="subgroupNameInput" class="form-input" placeholder="z.B. Waschbecken" maxlength="30" />
+          <label class="form-label">Subgroup name</label>
+          <input type="text" id="subgroupNameInput" class="form-input" placeholder="e.g. Vanity lights" maxlength="30" />
         </div>
         <div class="form-group">
-          <label class="form-label">Geräte auswählen</label>
-          <input type="text" id="subgroupSearch" class="form-input" placeholder="🔍 Suchen…" />
+          <label class="form-label">Select devices</label>
+          <input type="text" id="subgroupSearch" class="form-input" placeholder="🔍 Search…" />
           <div id="subgroupEntityList" class="entity-list" style="margin-top:8px"></div>
         </div>
       </div>
@@ -199,7 +199,7 @@
   ═══════════════════════════════════════════ -->
   <div id="loginModal" class="modal-overlay hidden">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
-      <button id="closeLoginModal" class="modal-close" aria-label="Schließen">
+      <button id="closeLoginModal" class="modal-close" aria-label="Close">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
           fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -207,15 +207,15 @@
         </svg>
       </button>
       <div class="modal-icon">🔐</div>
-      <h2 id="loginTitle" class="modal-title">Admin-Login</h2>
+      <h2 id="loginTitle" class="modal-title">Admin Login</h2>
       <form id="loginForm" novalidate>
         <div class="input-wrap">
           <input type="password" id="passwordInput" class="form-input form-input--large"
-            placeholder="Passwort" autocomplete="current-password" />
+            placeholder="Password" autocomplete="current-password" />
         </div>
-        <p id="loginError" class="login-error hidden">Falsches Passwort</p>
+        <p id="loginError" class="login-error hidden">Wrong password</p>
         <button type="submit" class="login-btn">
-          <span id="loginBtnText">Anmelden</span>
+          <span id="loginBtnText">Sign in</span>
           <span id="loginSpinner" class="btn-spinner hidden"></span>
         </button>
       </form>
