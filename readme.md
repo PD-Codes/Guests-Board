@@ -5,9 +5,12 @@ A lightweight Flask web dashboard that lets guests control your smart home devic
 ## Features
 
 - **Guest view** — simple grid of device groups with one-tap on/off and brightness/color controls
+- **Air conditioning** — target temperature, HVAC mode, fan speed and oscillation for `climate.*` entities, with the current room temperature shown alongside
+- **External temperature sensor** — a climate entity's built-in reading is often inaccurate, so any `sensor.*` with a temperature device class can be picked as its source instead; if that sensor is unavailable no value is shown rather than a misleading one
+- **German interface** — the guest view and admin panel are in German; code and comments stay English
 - **Admin panel** — password-protected; create groups, add individual devices or subgroups, drag to reorder
-- **Subgroups** — bundle multiple entities under one toggle (e.g. all bathroom lights)
-- **Live state polling** — device states refresh every 8 seconds automatically
+- **Subgroups** — bundle multiple entities under one toggle (e.g. all bathroom lights); lights and switches only
+- **Live state polling** — device states refresh every 8 seconds automatically, in a single request to Home Assistant
 - **Dark, mobile-first UI** — responsive design optimized for phone use on a wall-mounted tablet
 - **SQLite persistence** — group configuration stored locally; no extra database server required
 - **Home Assistant REST API** — communicates directly with your HA instance using a long-lived access token
@@ -18,7 +21,7 @@ A lightweight Flask web dashboard that lets guests control your smart home devic
 |---|---|
 | Backend | Python 3.10+, Flask 3 |
 | Database | SQLite (via `sqlite3`) |
-| Frontend | Vanilla JS, CSS (no framework) |
+| Frontend | Vanilla JS, CSS (no framework), German UI |
 | HA Integration | Home Assistant REST API |
 
 ## Setup

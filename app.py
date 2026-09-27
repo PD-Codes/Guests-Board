@@ -47,6 +47,7 @@ def init_db():
       item_devices – devices per item (1 for device, n for subgroup)
 
     Migration: if the old group_devices table exists, transfer to new schema.
+                group_items.temp_sensor is added in place when missing.
     """
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("PRAGMA foreign_keys = ON")
@@ -100,11 +101,12 @@ def init_db():
             # ── Fresh install ─────────────────────────────────────
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS group_items (
-                    id       TEXT PRIMARY KEY,
-                    group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-                    type     TEXT NOT NULL CHECK(type IN ('device','subgroup')),
-                    name     TEXT,
-                    sort     INTEGER NOT NULL DEFAULT 0
+                    id          TEXT PRIMARY KEY,
+                    group_id    TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+                    type        TEXT NOT NULL CHECK(type IN ('device','subgroup')),
+                    name        TEXT,
+                    sort        INTEGER NOT NULL DEFAULT 0,
+                    temp_sensor TEXT
                 )
             """)
             conn.execute("""
@@ -115,6 +117,11 @@ def init_db():
                     PRIMARY KEY (item_id, entity_id)
                 )
             """)
+
+        # Older databases predate the external temperature sensor override.
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(group_items)").fetchall()}
+        if "temp_sensor" not in cols:
+            conn.execute("ALTER TABLE group_items ADD COLUMN temp_sensor TEXT")
 
         conn.commit()
 
@@ -130,7 +137,7 @@ def db_load_groups():
     ).fetchall():
         items = []
         for irow in db.execute(
-            "SELECT id, type, name FROM group_items WHERE group_id=? ORDER BY sort, rowid",
+            "SELECT id, type, name, temp_sensor FROM group_items WHERE group_id=? ORDER BY sort, rowid",
             (grow["id"],)
         ).fetchall():
             devs = [r["entity_id"] for r in db.execute(
@@ -140,9 +147,10 @@ def db_load_groups():
 
             if irow["type"] == "device":
                 items.append({
-                    "id":        irow["id"],
-                    "type":      "device",
-                    "entity_id": devs[0] if devs else None,
+                    "id":          irow["id"],
+                    "type":        "device",
+                    "entity_id":   devs[0] if devs else None,
+                    "temp_sensor": irow["temp_sensor"],
                 })
             else:
                 items.append({
@@ -159,6 +167,19 @@ def db_load_groups():
             "items": items,
         })
     return groups
+
+
+def entity_id_of(device):
+    """
+    Accept either a plain entity ID or a full HA state object. /api/groups hands
+    subgroup devices back as objects, so a saved config can contain both shapes.
+    """
+    if isinstance(device, str):
+        return device
+    if isinstance(device, dict):
+        eid = device.get("entity_id")
+        return eid if isinstance(eid, str) else None
+    return None
 
 
 def db_save_groups(groups):
@@ -192,23 +213,31 @@ def db_save_groups(groups):
             itype = item["type"]
             iname = item.get("name") if itype == "subgroup" else None
 
+            # Optional external temperature sensor, only meaningful on devices.
+            isensor = item.get("temp_sensor") if itype == "device" else None
+            if not (isinstance(isensor, str) and isensor.startswith("sensor.")):
+                isensor = None
+
             db.execute(
-                "INSERT INTO group_items (id, group_id, type, name, sort) VALUES (?,?,?,?,?)"
-                " ON CONFLICT(id) DO UPDATE SET type=excluded.type, name=excluded.name, sort=excluded.sort",
-                (iid, gid, itype, iname, item_sort)
+                "INSERT INTO group_items (id, group_id, type, name, sort, temp_sensor)"
+                " VALUES (?,?,?,?,?,?)"
+                " ON CONFLICT(id) DO UPDATE SET type=excluded.type, name=excluded.name,"
+                " sort=excluded.sort, temp_sensor=excluded.temp_sensor",
+                (iid, gid, itype, iname, item_sort, isensor)
             )
 
             db.execute("DELETE FROM item_devices WHERE item_id=?", (iid,))
 
             if itype == "device":
-                eid = item.get("entity_id")
+                eid = entity_id_of(item.get("entity_id"))
                 if eid:
                     db.execute(
                         "INSERT OR IGNORE INTO item_devices (item_id, entity_id, sort) VALUES (?,?,0)",
                         (iid, eid)
                     )
             else:
-                for dev_sort, eid in enumerate(item.get("devices", [])):
+                devices = [e for e in (entity_id_of(d) for d in item.get("devices", [])) if e]
+                for dev_sort, eid in enumerate(devices):
                     db.execute(
                         "INSERT OR IGNORE INTO item_devices (item_id, entity_id, sort) VALUES (?,?,?)",
                         (iid, eid, dev_sort)
@@ -226,30 +255,90 @@ def ha_headers():
     }
 
 
+def ha_states_map():
+    """
+    Fetch every HA state in a single request and cache it for the duration of
+    the current request. Avoids one HTTP round trip per configured entity.
+    """
+    if "ha_states" not in g:
+        states = {}
+        try:
+            resp = requests.get(
+                f"{HA_URL}/api/states",
+                headers=ha_headers(), verify=False, timeout=10,
+            )
+            if resp.status_code == 200:
+                for entity in resp.json():
+                    eid = entity.get("entity_id")
+                    if eid:
+                        states[eid] = entity
+        except Exception:
+            pass
+        g.ha_states = states
+    return g.ha_states
+
+
 def fetch_ha_state(entity_id):
-    try:
-        resp = requests.get(
-            f"{HA_URL}/api/states/{entity_id}",
-            headers=ha_headers(), verify=False, timeout=5,
-        )
-        if resp.status_code == 200:
-            data  = resp.json()
-            attrs = data.get("attributes", {})
-            return {
-                "entity_id":    entity_id,
-                "state":        data.get("state"),
-                "attributes":   attrs,
-                "friendly_name": attrs.get("friendly_name", entity_id),
-                "domain":       entity_id.split(".")[0],
-            }
-    except Exception:
-        pass
+    """Look up one entity in the cached state map."""
+    data = ha_states_map().get(entity_id)
+    if data is None:
+        return {
+            "entity_id":     entity_id,
+            "state":         "unavailable",
+            "attributes":    {},
+            "friendly_name": entity_id,
+            "domain":        entity_id.split(".")[0],
+        }
+    attrs = data.get("attributes", {})
     return {
-        "entity_id":    entity_id,
-        "state":        "unavailable",
-        "attributes":   {},
-        "friendly_name": entity_id,
-        "domain":       entity_id.split(".")[0],
+        "entity_id":     entity_id,
+        "state":         data.get("state"),
+        "attributes":    attrs,
+        "friendly_name": attrs.get("friendly_name", entity_id),
+        "domain":        entity_id.split(".")[0],
+    }
+
+
+def climate_state(raw_state):
+    """Normalize an HVAC mode to the on/off/unavailable vocabulary of the UI."""
+    if raw_state in (None, "unavailable", "unknown"):
+        return "unavailable"
+    return "off" if raw_state == "off" else "on"
+
+
+def to_float(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def climate_payload(state, sensor=None):
+    """Everything the guest UI needs to render a climate entity."""
+    attrs   = state["attributes"]
+    current = to_float(attrs.get("current_temperature"))
+    source  = None
+
+    if sensor is not None:
+        # An external sensor replaces the unit's own reading. When it is
+        # unavailable the guest sees no value rather than a misleading one.
+        source  = sensor["entity_id"]
+        current = to_float(sensor["state"])
+
+    return {
+        "hvac_mode":    state["state"],
+        "hvac_action":  attrs.get("hvac_action"),
+        "hvac_modes":   [m for m in attrs.get("hvac_modes", []) if m != "off"],
+        "current_temp": current,
+        "temp_source":  source,
+        "target_temp":  attrs.get("temperature"),
+        "min_temp":     attrs.get("min_temp", 7),
+        "max_temp":     attrs.get("max_temp", 35),
+        "temp_step":    attrs.get("target_temp_step") or 0.5,
+        "fan_mode":     attrs.get("fan_mode"),
+        "fan_modes":    attrs.get("fan_modes") or [],
+        "swing_mode":   attrs.get("swing_mode"),
+        "swing_modes":  attrs.get("swing_modes") or [],
     }
 
 
@@ -323,28 +412,42 @@ def get_groups():
     for group in groups:
         items_out   = []
         all_eids    = []   # for master switch
+        toggleable  = []   # items the master switch and the count badge cover
 
         for item in group["items"]:
             if item["type"] == "device":
                 eid = item.get("entity_id")
                 if not eid:
                     continue
-                s = fetch_ha_state(eid)
-                items_out.append({
-                    "id":           item["id"],
-                    "type":         "device",
-                    "entity_id":    s["entity_id"],
-                    "state":        s["state"],
-                    "attributes":   s["attributes"],
+                s   = fetch_ha_state(eid)
+                out = {
+                    "id":            item["id"],
+                    "type":          "device",
+                    "entity_id":     s["entity_id"],
+                    "state":         s["state"],
+                    "attributes":    s["attributes"],
                     "friendly_name": s["friendly_name"],
-                    "domain":       s["domain"],
-                })
-                if s["domain"] == "light":
-                    all_eids.append(eid)
+                    "domain":        s["domain"],
+                }
+
+                if s["domain"] == "climate":
+                    # Climate is standalone: its own controls, never part of the
+                    # master switch or the on-count badge.
+                    sensor_eid = item.get("temp_sensor")
+                    sensor     = fetch_ha_state(sensor_eid) if sensor_eid else None
+                    out["state"]       = climate_state(s["state"])
+                    out["temp_sensor"] = sensor_eid
+                    out["climate"]     = climate_payload(s, sensor)
+                else:
+                    toggleable.append(out)
+                    if s["domain"] == "light":
+                        all_eids.append(eid)
+
+                items_out.append(out)
 
             else:  # subgroup
                 dev_states = [fetch_ha_state(e) for e in item.get("devices", [])]
-                items_out.append({
+                out = {
                     "id":         item["id"],
                     "type":       "subgroup",
                     "name":       item["name"],
@@ -352,12 +455,16 @@ def get_groups():
                     "attributes": aggregate_attrs(dev_states),
                     "devices":    dev_states,
                     "entity_ids": [d["entity_id"] for d in dev_states],
-                })
+                }
+                items_out.append(out)
+                toggleable.append(out)
                 all_eids.extend(
                     d["entity_id"] for d in dev_states if d["domain"] == "light"
                 )
 
-        master_state = aggregate_state([{"state": i["state"]} for i in items_out]) if items_out else "off"
+        master_state = aggregate_state(
+            [{"state": i["state"]} for i in toggleable]
+        ) if toggleable else "off"
 
         result.append({
             "id":           group["id"],
@@ -365,6 +472,8 @@ def get_groups():
             "icon":         group["icon"],
             "master_state": master_state,
             "all_eids":     list(dict.fromkeys(all_eids)),  # deduplicated, order preserved
+            "toggle_total": len(toggleable),
+            "on_count":     sum(1 for i in toggleable if i["state"] == "on"),
             "items":        items_out,
         })
 
@@ -409,6 +518,56 @@ def control_device():
     return jsonify({"success": all("ha_status" in r for r in results), "results": results})
 
 
+# Maps a request field to the HA service and its service-data key.
+# Order matters: the HVAC mode is applied before anything else, so a device
+# that is switched on and adjusted in one go accepts the follow-up calls.
+CLIMATE_SERVICES = [
+    ("hvac_mode",   "set_hvac_mode",   "hvac_mode"),
+    ("temperature", "set_temperature", "temperature"),
+    ("fan_mode",    "set_fan_mode",    "fan_mode"),
+    ("swing_mode",  "set_swing_mode",  "swing_mode"),
+]
+
+
+@app.route("/api/climate", methods=["POST"])
+def control_climate():
+    """
+    Control a climate entity.
+    Body: { entity_id, hvac_mode?, temperature?, fan_mode?, swing_mode? }
+    """
+    data = request.get_json() or {}
+    eid  = data.get("entity_id")
+
+    if not eid or not eid.startswith("climate."):
+        return jsonify({"error": "Invalid entity_id"}), 400
+
+    calls = [(svc, key, data[field])
+             for field, svc, key in CLIMATE_SERVICES if field in data]
+    if not calls:
+        return jsonify({"error": "Nothing to set"}), 400
+
+    results = []
+    for service, key, value in calls:
+        if key == "temperature":
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                return jsonify({"error": "Invalid temperature"}), 400
+
+        try:
+            resp = requests.post(
+                f"{HA_URL}/api/services/climate/{service}",
+                headers=ha_headers(),
+                json={"entity_id": eid, key: value},
+                verify=False, timeout=5,
+            )
+            results.append({"service": service, "ha_status": resp.status_code})
+        except Exception as e:
+            results.append({"service": service, "error": str(e)})
+
+    return jsonify({"success": all("ha_status" in r for r in results), "results": results})
+
+
 # ─── Admin routes ─────────────────────────────────────────────────
 
 @app.route("/api/admin/entities")
@@ -423,24 +582,50 @@ def get_entities():
     except Exception as e:
         return jsonify({"error": str(e)}), 502
 
+    domain_order = {"light": 0, "switch": 1, "climate": 2}
+
     filtered = []
+    sensors  = []
     for entity in resp.json():
-        eid = entity.get("entity_id", "")
-        if not (eid.startswith("light.") or eid.startswith("switch.")):
+        eid    = entity.get("entity_id", "")
+        domain = eid.split(".")[0]
+
+        if domain == "sensor":
+            # Offered as an override for a climate unit's built-in reading.
+            a = entity.get("attributes", {})
+            if a.get("device_class") == "temperature" or \
+               a.get("unit_of_measurement") in ("°C", "°F"):
+                sensors.append({
+                    "entity_id":     eid,
+                    "friendly_name": a.get("friendly_name", eid),
+                    "state":         entity.get("state"),
+                    "unit":          a.get("unit_of_measurement", ""),
+                    "domain":        "sensor",
+                })
             continue
+
+        if domain not in domain_order:
+            continue
+
         attrs       = entity.get("attributes", {})
         color_modes = attrs.get("supported_color_modes", [])
-        filtered.append({
+        row = {
             "entity_id":      eid,
             "friendly_name":  attrs.get("friendly_name", eid),
             "state":          entity.get("state"),
-            "domain":         eid.split(".")[0],
-            "has_brightness": eid.startswith("light."),
+            "domain":         domain,
+            "has_brightness": domain == "light",
             "has_color":      any(m in color_modes for m in ("rgb","hs","xy","rgbw","rgbww")),
-        })
+        }
+        if domain == "climate":
+            row["hvac_modes"]  = [m for m in attrs.get("hvac_modes", []) if m != "off"]
+            row["fan_modes"]   = attrs.get("fan_modes") or []
+            row["swing_modes"] = attrs.get("swing_modes") or []
+        filtered.append(row)
 
-    filtered.sort(key=lambda x: (x["domain"] != "light", x["friendly_name"].lower()))
-    return jsonify({"entities": filtered})
+    filtered.sort(key=lambda x: (domain_order[x["domain"]], x["friendly_name"].lower()))
+    sensors.sort(key=lambda x: x["friendly_name"].lower())
+    return jsonify({"entities": filtered, "sensors": sensors})
 
 
 @app.route("/api/admin/config", methods=["GET"])

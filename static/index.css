@@ -23,6 +23,9 @@
   --danger:       #f87171;
   --subgroup:     rgba(129,140,248,0.08);
   --subgroup-bdr: rgba(129,140,248,0.2);
+  --climate:      #38bdf8;
+  --climate-dim:  rgba(56,189,248,0.12);
+  --climate-bdr:  rgba(56,189,248,0.28);
   --radius:       16px;
   --radius-sm:    10px;
   --shadow:       0 8px 32px rgba(0,0,0,0.45);
@@ -223,6 +226,82 @@ input  { font-family: inherit; }
 .color-input-btn:active { transform: scale(0.92); }
 input[type="color"] { width: 100%; height: 100%; border: none; padding: 0; cursor: pointer; background: none; }
 
+/* ─── Climate ────────────────────────────────────────────────── */
+.climate-row {
+  background: var(--climate-dim);
+  border-left: 2px solid var(--climate-bdr);
+  gap: 12px;
+}
+.climate-row:hover { background: rgba(56,189,248,0.16); }
+.climate-icon { font-size: 14px; flex-shrink: 0; }
+.climate-state-label {
+  font-size: 11px; font-weight: 600; color: var(--climate);
+  text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0;
+}
+.climate-row.climate-off .climate-state-label { color: var(--text3); font-weight: 400; }
+.climate-row .toggle input:checked + .toggle-slider {
+  background: var(--climate); box-shadow: 0 0 12px rgba(56,189,248,0.3);
+}
+
+/* Current reading + target stepper */
+.climate-temp-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 2px;
+}
+.climate-current { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.climate-current-value {
+  font-size: 20px; font-weight: 600; letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.climate-current-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--text3);
+}
+.climate-stepper {
+  display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+  background: rgba(0,0,0,0.25); border: 1px solid var(--card-border);
+  border-radius: 99px; padding: 3px;
+}
+.step-btn {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 19px; font-weight: 500; line-height: 1;
+  color: var(--text1); background: var(--card);
+  transition: background var(--trans), color var(--trans), transform 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.step-btn:hover  { background: var(--climate-dim); color: var(--climate); }
+.step-btn:active { transform: scale(0.88); }
+.climate-target {
+  min-width: 58px; text-align: center;
+  font-size: 16px; font-weight: 600; color: var(--climate);
+  font-variant-numeric: tabular-nums;
+}
+.climate-row.climate-off .climate-target { color: var(--text2); }
+
+/* Chip rows: HVAC mode, fan speed, oscillation */
+.chip-row { display: flex; flex-direction: column; gap: 6px; padding: 0 2px; }
+.chip-row-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--text3);
+}
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  padding: 6px 11px; border-radius: 99px;
+  font-size: 12px; font-weight: 500; white-space: nowrap;
+  color: var(--text2); background: var(--card);
+  border: 1px solid var(--card-border);
+  transition: background var(--trans), border-color var(--trans),
+              color var(--trans), transform 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.chip:hover  { border-color: var(--climate-bdr); color: var(--text1); }
+.chip:active { transform: scale(0.94); }
+.chip.chip-active {
+  background: var(--climate-dim); border-color: var(--climate);
+  color: var(--climate); font-weight: 600;
+}
+
 /* ─── Empty state & skeleton ─────────────────────────────────── */
 .empty-state {
   display: flex; flex-direction: column; align-items: center;
@@ -415,13 +494,27 @@ input[type="color"] { width: 100%; height: 100%; border: none; padding: 0; curso
 }
 .entity-domain-badge.light  { background: rgba(251,191,36,0.15); color: #fbbf24; }
 .entity-domain-badge.switch { background: rgba(129,140,248,0.15); color: var(--accent); }
+.entity-domain-badge.climate { background: var(--climate-dim); color: var(--climate); }
+.entity-domain-badge.sensor {
+  background: rgba(148,163,184,0.12); color: var(--text2);
+  text-transform: none; letter-spacing: 0; font-variant-numeric: tabular-nums;
+}
 .entity-loading { padding: 24px; text-align: center; color: var(--text3); font-size: 14px; }
+
+.sheet-hint {
+  font-size: 13px; line-height: 1.45; color: var(--text3);
+  margin-bottom: 4px;
+}
 
 /* ─── Form ───────────────────────────────────────────────────── */
 .form-group { display: flex; flex-direction: column; gap: 8px; }
 .form-label {
   font-size: 11px; font-weight: 600; text-transform: uppercase;
   letter-spacing: 0.06em; color: var(--text3);
+}
+.label-hint {
+  font-weight: 400; text-transform: none; letter-spacing: 0;
+  color: var(--text3); opacity: 0.75;
 }
 .form-input {
   background: var(--bg2); border: 1px solid var(--card-border);
